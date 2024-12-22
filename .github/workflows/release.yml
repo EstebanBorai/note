@@ -1,0 +1,187 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: choice
+        required: true
+        description: 'Version number to bump'
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  publish-dry-run:
+    name: "Runs cargo publish --dry-run"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: publish crate
+        run: cargo publish --dry-run
+
+  tag-bump:
+    name: Tag Bump
+    needs: publish-dry-run
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.set-tag.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Setup Cargo Binstall
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: Install Rust Binaries
+        run: |
+          cargo binstall -y --force cargo-edit
+
+      - id: cargo-set-version
+        name: Set Version
+        run: cargo set-version --bump ${{ inputs.version }}
+
+      - name: Set Tag as Output
+        id: set-tag
+        run: |
+          CARGO_TOML_VERSION=$(awk -F ' = ' '$1 ~ /version/ { gsub(/[\"]/, "", $2); printf("%s",$2) }' Cargo.toml)
+          echo "::set-output name=tag::$CARGO_TOML_VERSION"
+
+      - name: Print Tag
+        run: echo ${{ steps.set-tag.outputs.tag }}
+
+      - name: Create Commit
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .
+          git commit -m "chore: bump version to v${{ steps.set-tag.outputs.tag }}"
+          git push origin main --follow-tags
+
+
+  release:
+    name: Create Release
+    needs: tag-bump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Release
+        id: create_release
+        uses: actions/github-script@v5
+        with:
+          script: |
+            await github.request(`POST /repos/${{ github.repository }}/releases`, {
+              tag_name: "v${{ needs.tag-bump.outputs.tag }}",
+              generate_release_notes: true
+            });
+
+  publish:
+    name: Publish to Crates.io
+    needs:
+      - release
+      - tag-bump
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: "refs/tags/v${{ needs.tag-bump.outputs.tag }}"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Login to Crates.io
+        run: cargo login ${CRATES_IO_TOKEN}
+        env:
+          CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+
+      - name: Publish crate
+        run: cargo publish
+
+  artifacts:
+    needs:
+      - tag-bump
+      - release
+      - publish
+    name: Upload Artifacts ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    strategy:
+      matrix:
+        name:
+          - linux-x64-musl
+          - macos-x64
+          - macos-aarch64
+
+        include:
+          - name: linux-x64-musl
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            exe: note
+
+          - name: macos-x64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            exe: note
+
+          - name: macos-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            exe: note
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: "refs/tags/v${{ needs.tag-bump.outputs.tag }}"
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install ${{ matrix.name }} System Dependencies
+        if: matrix.name == 'linux-x64-musl'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+
+      - name: Build for Release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Prepare Binary
+        shell: bash
+        run: |
+          chmod +x ./target/${{ matrix.target }}/release/${{ matrix.exe }}
+          cp ./target/${{ matrix.target }}/release/${{ matrix.exe }} ./note-${{ matrix.target }}
+
+      - name: Attach Binary
+        uses: svenstaro/upload-release-action@2.9.0
+        with:
+          asset_name: note-${{ matrix.target }}
+          file: note-${{ matrix.target }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: "v${{ needs.tag-bump.outputs.tag }}"

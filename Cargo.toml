@@ -1,0 +1,22 @@
+[package]
+name = "note"
+version = "0.0.0"
+edition = "2021"
+description = "Notes Manager System"
+categories = ["command-line-utilities"]
+homepage = "https://github.com/EstebanBorai/note"
+repository = "https://github.com/EstebanBorai/note"
+readme = "README.md"
+keywords = ["wait", "note", "file", "http", "socket"]
+license = "MIT OR Apache-2.0"
+authors = ["Esteban Borai <estebanborai@gmail.com>"]
+
+[lib]
+name = "note"
+path = "src/lib.rs"
+
+[[bin]]
+name = "note"
+path = "src/bin/main.rs"
+
+[dependencies]
