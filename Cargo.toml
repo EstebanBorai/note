@@ -20,3 +20,10 @@ name = "note"
 path = "src/bin/main.rs"
 
 [dependencies]
+anyhow = "1.0.81"
+clap = { version = "4.5.4", features = ["std", "derive", "env"] }
+dirs = "5.0.1"
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+tokio = { version = "1.37.0", features = ["io-util", "rt-multi-thread", "macros", "net"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
