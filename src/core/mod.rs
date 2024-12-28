@@ -1,25 +1,30 @@
 pub mod collection;
+pub mod note;
 
-use std::sync::Arc;
+use std::rc::Rc;
 
 use anyhow::Result;
+use note::service::NoteService;
 
 use crate::backend::Backend;
 
 use self::collection::service::CollectionService;
 
-pub struct Note {
+pub struct NoteApi {
     pub collections: CollectionService,
-    backend: Arc<Backend>,
+    pub notes: NoteService,
+    backend: Rc<Backend>,
 }
 
-impl Note {
+impl NoteApi {
     pub fn new(backend: Backend) -> Result<Self> {
-        let backend = Arc::new(backend);
-        let collections = CollectionService::new(Arc::clone(&backend))?;
+        let backend = Rc::new(backend);
+        let collections = CollectionService::new(Rc::clone(&backend))?;
+        let notes = NoteService::new(Rc::clone(&backend))?;
 
         Ok(Self {
             collections,
+            notes,
             backend,
         })
     }

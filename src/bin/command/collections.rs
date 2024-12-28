@@ -1,6 +1,7 @@
 use anyhow::Result;
 use clap::Subcommand;
-use note::core::Note;
+
+use note::core::NoteApi;
 
 #[derive(Clone, Debug, Subcommand)]
 pub enum CollectionsOpt {
@@ -11,7 +12,7 @@ pub enum CollectionsOpt {
 }
 
 impl CollectionsOpt {
-    pub async fn exec(&self, api: Note) -> Result<()> {
+    pub async fn exec(&self, api: NoteApi) -> Result<()> {
         match self {
             CollectionsOpt::New { name } => {
                 api.collections.create_collection(name).await?;

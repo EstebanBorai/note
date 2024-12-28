@@ -6,9 +6,10 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 use note::backend::sqlite::SqliteBackend;
 use note::backend::{install, Backend};
-use note::core::Note;
+use note::core::NoteApi;
 
 use self::command::collections::CollectionsOpt;
+use self::command::notes::NotesOpt;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -23,6 +24,10 @@ pub enum Command {
     Collections {
         #[command(subcommand)]
         subcommand: CollectionsOpt,
+    },
+    Notes {
+        #[command(subcommand)]
+        subcommand: NotesOpt,
     },
     /// Install the Note Application
     Install,
@@ -49,7 +54,7 @@ async fn main() -> Result<()> {
 
     let args = Cli::parse();
     let backend = Backend::Sqlite(SqliteBackend::new()?);
-    let api = Note::new(backend)?;
+    let api = NoteApi::new(backend)?;
 
     match args.command {
         Command::New { body } => {
@@ -60,6 +65,9 @@ async fn main() -> Result<()> {
             api.install().await?;
         }
         Command::Collections { subcommand } => {
+            subcommand.exec(api).await?;
+        }
+        Command::Notes { subcommand } => {
             subcommand.exec(api).await?;
         }
     }

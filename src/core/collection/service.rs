@@ -1,17 +1,17 @@
 use anyhow::Result;
 
-use std::sync::Arc;
+use std::rc::Rc;
 
 use crate::backend::{Backend, BackendExt};
 
 use super::model::Collection;
 
 pub struct CollectionService {
-    backend: Arc<Backend>,
+    backend: Rc<Backend>,
 }
 
 impl CollectionService {
-    pub fn new(backend: Arc<Backend>) -> Result<Self> {
+    pub fn new(backend: Rc<Backend>) -> Result<Self> {
         Ok(CollectionService { backend })
     }
 
